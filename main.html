@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>World Map with Mortality Rates</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            color: #8E8D8A;
+            background-color: #EAE7DC;
+        }
+        h1{
+            background-color: #EAE7DC;
+        }
+        .container {
+            display: flex;
+            background-color: #EAE7DC;
+        }
+        .map-container {
+            position: relative;
+            flex: 1;
+            margin-right: 20px;
+        }
+        .charts-container {
+            width: 600px;
+         
+        }
+        .map {
+            border: 1px solid #ccc;
+            position: relative;
+        }
+        .chart {
+            margin-bottom: 20px;
+        }
+        .chart-title {
+            text-align: center;
+        }
+        .tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+            background-color: #EAE7DC;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 10px;
+        }
+        .legend-color {
+            width: 60px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 5px;
+            color: #8E8D8A;
+            font-size: 12px;
+        }
+        
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+    <h1>World Map with Mortality Rates</h1>
+    <div class="container">
+        <div class="map-container">
+            <div id="map" class="map"></div>
+            <div class="legend" id="legend"></div>
+            <input type="range" min="2000" max="2016" value="2000" id="yearSlider">
+            <label for="yearSlider">Year: <span id="yearLabel">2000</span></label>
+            <table>
+                <thead>
+                    <tr>
+                        <th colspan="2">Top 3 Lowest Mortality Rates</th>
+                        <th colspan="2">Top 3 Highest Mortality Rates</th>
+                    </tr>
+                    <tr>
+                        <th>Country</th>
+                        <th>Rate</th>
+                        <th>Country</th>
+                        <th>Rate</th>
+                    </tr>
+                </thead>
+                <tbody id="mortalityTable">
+                    <tr>
+                        <td colspan="2">No data</td>
+                        <td colspan="2">No data</td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </div>
+        <div class="charts-container">
+            <div class="chart">
+                <h2 class="chart-title" id="lineChartTitle">Mortality Rates Over Time</h2>
+                <svg id="lineChart" width="500" height="300"></svg>
+            </div>
+            <div class="chart">
+                <h2 class="chart-title" id="pieChartTitle">Male vs Female Mortality</h2>
+                <svg id="pieChart" width="300" height="300"></svg>
+            </div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        const width = 1300, height = 590;
+        const map = d3.select("#map").append("svg").attr("width", width).attr("height", height);
+        const projection = d3.geoNaturalEarth1().scale(190).translate([width / 2, height / 2]);
+        const path = d3.geoPath().projection(projection);
+        const g = map.append("g");
+        const tooltip = d3.select("#tooltip");
+        let currentCountry = ""; // Global variable to store the current country
+
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .translateExtent([[0, 0], [width, height]])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+
+        map.call(zoom);
+
+        // Load the GeoJSON data
+        d3.json('https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/110m/cultural/ne_110m_admin_0_countries.json').then(geoData => {
+            // Load the CSV data
+            d3.csv('Adult mortality.csv').then(mortalityData => {
+                // Data processing
+                const mortalityByCountryYear = {};
+                mortalityData.forEach(d => {
+                    if (!mortalityByCountryYear[d.Country]) {
+                        mortalityByCountryYear[d.Country] = {};
+                    }
+                    mortalityByCountryYear[d.Country][d.Year] = {
+                        male: +d.Male,
+                        female: +d.Female,
+                        both: (+d.Male + +d.Female) / 2
+                    };
+                });
+
+                const countries = geoData.features;
+
+                const colorScale = d3.scaleSequential(d3.interpolateBlues)
+                    .domain([0, d3.max(Object.values(mortalityByCountryYear), d => d3.max(Object.values(d), v => v.both))]);
+
+                // Draw the map
+                g.selectAll('path')
+                    .data(countries)
+                    .enter().append('path')
+                    .attr('d', path)
+                    .attr('fill', d => {
+                        const country = d.properties.NAME;
+                        const year = document.getElementById("yearSlider").value;
+                        return mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ?
+                            colorScale(mortalityByCountryYear[country][year].both) :
+                            '#e87a4f';
+                    })
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 0.5)
+                    .on('mouseover', (event, d) => {
+                        d3.select(event.currentTarget).attr('fill', 'orange');
+                        tooltip.style('opacity', 1)
+                               .html(d.properties.NAME)
+                               .style('left', (event.pageX + 10) + 'px')
+                               .style('top', (event.pageY + 10) + 'px');
+                    })
+                    .on('mouseout', (event, d) => {
+                        d3.select(event.currentTarget).attr('fill', () => {
+                            const country = d.properties.NAME;
+                            const year = document.getElementById("yearSlider").value;
+                            return mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ?
+                                colorScale(mortalityByCountryYear[country][year].both) :
+                                '#e87a4f';
+                        });
+                        tooltip.style('opacity', 0);
+                    })
+                    .on('click', (event, d) => {
+                    const country = d.properties.NAME;
+                    currentCountry = country; // Update the currentCountry variable
+                    updateLineChart(country);
+                    updatePieChart(country, document.getElementById("yearSlider").value);
+                    });
+
+                // Year slider event
+                document.getElementById("yearSlider").addEventListener("input", function() {
+                const year = this.value;
+                document.getElementById("yearLabel").textContent = year;
+                g.selectAll('path').attr('fill', d => {
+                    const country = d.properties.NAME;
+                    return mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ?
+                    colorScale(mortalityByCountryYear[country][year].both) :
+                    '#e87a4f';
+                });
+                // Update the mortality table
+                updateMortalityTable(year);
+                // Check if a country is selected and update the pie chart accordingly
+                if (currentCountry) {
+                    updatePieChart(currentCountry, year);
+                }
+                });
+
+
+                // Line chart
+                const lineChart = d3.select("#lineChart");
+                const lineMargin = { top: 20, right: 20, bottom: 30, left: 50 };
+                const lineWidth = lineChart.attr("width") - lineMargin.left - lineMargin.right;
+                const lineHeight = lineChart.attr("height") - lineMargin.top - lineMargin.bottom;
+                const lineG = lineChart.append("g").attr("transform", `translate(${lineMargin.left},${lineMargin.top})`);
+
+                const x = d3.scaleLinear().domain([2000, 2016]).range([0, lineWidth]);
+                const y = d3.scaleLinear().range([lineHeight, 0]);
+
+                lineG.append("g").attr("transform", `translate(0,${lineHeight})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
+                lineG.append("g").attr("class", "y-axis");
+
+                const line = d3.line().x(d => x(d.year)).y(d => y(d.value));
+
+                function updateLineChart(country) {
+                    document.getElementById("lineChartTitle").textContent = `Mortality Rates Over Time (${country})`;
+                    const data = [];
+                    for (let year = 2000; year <= 2016; year++) {
+                        if (mortalityByCountryYear[country] && mortalityByCountryYear[country][year]) {
+                            data.push({ year: year, value: mortalityByCountryYear[country][year].both });
+                        }
+                    }
+                    y.domain([0, d3.max(data, d => d.value)]);
+                    lineG.select(".y-axis").call(d3.axisLeft(y));
+                    const path = lineG.selectAll(".line").data([data]);
+                    path.enter().append("path").attr("class", "line").merge(path)
+                        .attr("d", line)
+                        .attr("fill", "none")
+                        .attr("stroke", "steelblue")
+                        .attr("stroke-width", 1.5)
+                        .attr("data-country", country);
+                    path.exit().remove();
+                }
+
+                // Pie chart
+                const pieChart = d3.select("#pieChart");
+                const pieRadius = Math.min(pieChart.attr("width"), pieChart.attr("height")) / 2;
+                const pieG = pieChart.append("g").attr("transform", `translate(${pieRadius},${pieRadius})`);
+
+                const pie = d3.pie().value(d => d.value);
+                const arc = d3.arc().outerRadius(pieRadius - 10).innerRadius(0);
+
+                const color = d3.scaleOrdinal(["#6d4337", "#ef7474"]);
+
+                function updatePieChart(country, year) {
+                    document.getElementById("pieChartTitle").textContent = `Male vs Female Mortality (${country})`;
+
+                    const data = mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ? [
+                        { label: "Male", value: mortalityByCountryYear[country][year].male },
+                        { label: "Female", value: mortalityByCountryYear[country][year].female }
+                    ] : [];
+
+                    const arcs = pieG.selectAll(".arc").data(pie(data));
+                    const newArcs = arcs.enter().append("g").attr("class", "arc");
+
+                    newArcs.append("path").merge(arcs.select("path"))
+                        .attr("d", arc)
+                        .attr("fill", d => color(d.data.label));
+
+                    newArcs.append("text").merge(arcs.select("text"))
+                        .attr("transform", d => `translate(${arc.centroid(d)})`)
+                        .attr("dy", "0.35em")
+                        .attr("text-anchor", "middle")
+                        .text(d => `${d.data.label}: ${d.data.value}`);
+
+                    arcs.exit().remove();
+                }
+
+                // Legend
+                const legendData = colorScale.ticks(6).map(t => ({ value: t, color: colorScale(t) }));
+                legendData.push({ value: "No Data", color: "#E85A4F" });
+                const legend = d3.select("#legend");
+                legend.selectAll(".legend-item")
+                    .data(legendData)
+                    .enter().append("div")
+                    .attr("class", "legend-item")
+                    .each(function(d) {
+                        const item = d3.select(this);
+                        item.append("div")
+                            .attr("class", "legend-color")
+                            .style("background-color", d.color)
+                            .text(d.value);
+                    });
+                // Update mortality table
+                function updateMortalityTable(year) {
+                    const yearData = Object.entries(mortalityByCountryYear).map(([country, years]) => ({
+                        country,
+                        rate: years[year] ? years[year].both : null
+                    })).filter(d => d.rate !== null).sort((a, b) => a.rate - b.rate);
+
+                    const topLowest = yearData.slice(0, 3);
+                    const topHighest = yearData.slice(-3).reverse();
+
+                    const tbody = d3.select("#mortalityTable");
+                    tbody.selectAll("tr").remove();
+
+                    for (let i = 0; i < 3; i++) {
+                        const row = tbody.append("tr");
+
+                        if (topLowest[i]) {
+                            row.append("td").text(topLowest[i].country);
+                            row.append("td").text(topLowest[i].rate.toFixed(2));
+                        } else {
+                            row.append("td").attr("colspan", 2).text("No data");
+                        }
+
+                        if (topHighest[i]) {
+                            row.append("td").text(topHighest[i].country);
+                            row.append("td").text(topHighest[i].rate.toFixed(2));
+                        } else {
+                            row.append("td").attr("colspan", 2).text("No data");
+                        }
+                    }
+                }
+
+                // Initial update
+                updateMortalityTable(document.getElementById("yearSlider").value);    
+            });
+
+        });
+    </script>
+</body>
+</html>
