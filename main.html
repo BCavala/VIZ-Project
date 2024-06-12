@@ -134,7 +134,7 @@
         const path = d3.geoPath().projection(projection);
         const g = map.append("g");
         const tooltip = d3.select("#tooltip");
-        let currentCountry = ""; // Global variable to store the current country
+        let currentCountry = ""; 
 
         const zoom = d3.zoom()
             .scaleExtent([1, 8])
@@ -200,7 +200,7 @@
                     })
                     .on('click', (event, d) => {
                     const country = d.properties.NAME;
-                    currentCountry = country; // Update the currentCountry variable
+                    currentCountry = country;
                     updateLineChart(country);
                     updatePieChart(country, document.getElementById("yearSlider").value);
                     });
