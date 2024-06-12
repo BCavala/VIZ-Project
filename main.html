@@ -64,7 +64,7 @@
             align-items: center;
             justify-content: center;
             margin-right: 5px;
-            color: #8E8D8A;
+            color: #000000;
             font-size: 12px;
         }
         
@@ -177,7 +177,7 @@
                         const year = document.getElementById("yearSlider").value;
                         return mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ?
                             colorScale(mortalityByCountryYear[country][year].both) :
-                            '#e87a4f';
+                            '#8E8D8A';
                     })
                     .attr('stroke', '#fff')
                     .attr('stroke-width', 0.5)
@@ -194,7 +194,7 @@
                             const year = document.getElementById("yearSlider").value;
                             return mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ?
                                 colorScale(mortalityByCountryYear[country][year].both) :
-                                '#e87a4f';
+                                '#8E8D8A';
                         });
                         tooltip.style('opacity', 0);
                     })
@@ -213,7 +213,7 @@
                     const country = d.properties.NAME;
                     return mortalityByCountryYear[country] && mortalityByCountryYear[country][year] ?
                     colorScale(mortalityByCountryYear[country][year].both) :
-                    '#e87a4f';
+                    '#8E8D8A';
                 });
                 // Update the mortality table
                 updateMortalityTable(year);
@@ -295,7 +295,7 @@
 
                 // Legend
                 const legendData = colorScale.ticks(6).map(t => ({ value: t, color: colorScale(t) }));
-                legendData.push({ value: "No Data", color: "#E85A4F" });
+                legendData.push({ value: "No Data", color: "#8E8D8A" });
                 const legend = d3.select("#legend");
                 legend.selectAll(".legend-item")
                     .data(legendData)
